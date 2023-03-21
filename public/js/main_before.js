@@ -299,7 +299,7 @@ function addAssetTruck(cFlag) {
       assetTruck = viewer.scene.primitives.add(
         new Cesium.Cesium3DTileset({
           //##실습6. 본인이 추가한 트럭에셋 아이디 추가
-          url: Cesium.IonResource.fromAssetId("본인 에셋 아이디 추가"),
+          url: Cesium.IonResource.fromAssetId("1590635"),
         })
       );
       positionProperty = assetTruck.position;
@@ -340,6 +340,21 @@ function createModel(mName, height) {
 
   //##실습7. 고정 위치에 모델 추가하는 소스 추가
 
+  const entity = viewer.entities.add({
+    //entity정보 입력
+    id: mName,
+    name: url,
+    position: position,
+    orientation: orientation,
+    model: {
+      uri: url,
+
+      minimumPixelSize: 128,
+
+      maximumScale: 10,
+    },
+  });
+
   //모델 위치로 이동
   viewer.camera.flyTo({
     destination: position,
@@ -352,19 +367,52 @@ function createModel(mName, height) {
 //객체 전체 삭제
 function removeAllEntity() {
   //##실습8. 전체 엔티티 삭제
-
+  viewer.entities.removeAll();
   $(".modelObject input[type=checkbox]").attr("checked", false);
 }
 
 let moveCnt = 0; //애니메이션 카운트
 let animationInterval; //애니메이션 인터벌
-let moveTerm = 0.0002; //이동 텀
+let moveTerm = 0.0001; //이동 텀
 //애니메이션 시작
 function playCarAnimation() {
   var initlon = 127.098;
   var initlat = 37.5125827313;
   var initalt = 100;
   //##실습14. 벌룬 애니메이션 소스 추가
+  animationInterval = setInterval(function () {
+    var thisEntity = viewer.entities.getById("CesiumBalloon");
+    var direction = parseInt(moveCnt / 25);
+
+    if (direction == 0) {
+      //25프레임 까지 동쪽으로 이동
+      initlon = initlon + moveTerm;
+    } else if (direction == 1) {
+      //26~45 프레임 까지 남쪽 이동
+
+      initlat = initlat - moveTerm;
+    } else if (direction == 2) {
+      //46~75 프레임 까지 서쪽 이동
+
+      initlon = initlon - moveTerm;
+    } else if (direction == 3) {
+      //76~100 프레임 까지 북쪽 이동
+
+      initlat = initlat + moveTerm;
+    }
+
+    thisEntity.position = Cesium.Cartesian3.fromDegrees(initlon, initlat, initalt);
+
+    //viewer.trackedEntity = thisEntity; //객체 따라가고 싶을때
+
+    moveCnt++;
+
+    if (moveCnt == 100) {
+      //100프레임 후 종료
+
+      stopCarAnimation();
+    }
+  }, 300); //프레임 이동시간 ms
 }
 
 //애니메이션 종료
@@ -451,6 +499,24 @@ function addWmsLayer(cFlag, layerName) {
       //https://www.vworld.kr/dev/v4dv_wmsguide2_s001.do
       //키는 그대로 사용하거나 회원가입하여 발급 필요// 42F6D36E-1A78-34B7-959F-37611794397B
       //호출 주소는 서버내 프록시로 구성되어 있어서 /proxywms로 요청
+
+      //프록시 서버를 활용하여 브이월드 요청
+      var wmsInfo = new Cesium.WebMapServiceImageryProvider({
+        //http://api.vworld.kr/req/wms
+        url: "/proxywms", //프록시 주소
+        parameters: {
+          //key : 'F1D04FBB-DBB3-3F07-9B45-2FA496499F9B', //api key
+          key: "767B7ADF-10BA-3D86-AB7E-02816B5B92E9", //api key
+          version: "1.3.0", //wms version
+          domain: "localhost:8080", //api 신청 주소
+          format: "image/png",
+          transparent: "true",
+          crs: "EPSG:4326",
+        },
+        layers: layerName, //레이어 이름
+      });
+      var imageryLayers = viewer.imageryLayers; //이미지 레이어
+      wmsLayerMap.set(layerName, imageryLayers.addImageryProvider(wmsInfo)); //wms레이어 추가
     }
   }
 }
@@ -470,6 +536,22 @@ function addWfsLayer(cFlag, layerName) {
       //https://www.vworld.kr/dev/v4dv_wmsguide2_s001.do
       //키는 그대로 사용하거나 회원가입하여 발급 필요
       //호출 주소는 서버내 프록시로 구성되어 있어서 /proxywfs로 요청
+      //##실습13. wfs정보 추가하는 소스 추가
+      // wfsIndexLayer = Cesium.GeoJsonDataSource.load(
+      //   //wfs를 geojosn타입으로 추가
+      //   "/proxywfs?service=WFS&request=GetFeature&VERSION=1.1.0&maxFeatures=50&output=application/json&KEY=767B7ADF-10BA-3D86-AB7E-02816B5B92E9&DOMAIN=localhost:8000&crs=EPSG:4326&srsname=EPSG:4326&typeName=" +
+      //     layerName,
+      //   {
+      //     //스타일 지정
+      //     stroke: Cesium.Color.WHITE,
+      //     strokeWidth: 5,
+      //   }
+      // );
+      // //추가된 레이어 wfs레이어 맵에 추가
+      // layerName,
+      //   viewer.dataSources.add(wfsIndexLayer).then(function (val) {
+      //     wfsLayerMap.set(layerName, val);
+      //   });
     }
   }
 }
@@ -481,11 +563,27 @@ function addShadowEffect(cFlag) {
 //그림자 시뮬레이션 시작
 function startShadowSimulation() {
   //##실습15. 그림자 시뮬레이션 소스 추가
+  //##실습15. 그림자 시뮬레이션 소스 추가
+  //시작시간
+  const start = Cesium.JulianDate.fromIso8601("2022-05-30");
+  //종료시간
+  const stop = Cesium.JulianDate.fromIso8601("2022-05-31");
+  //시계 객체
+  const clock = viewer.clock;
+  clock.startTime = start; //시작시간 설정
+  clock.stopTime = stop; //종료 시간 설정
+  clock.currentTime = start; //현재시간 설정
+  clock.clockRange = Cesium.ClockRange.LOOP_STOP; //루프 종료
+  clock.multiplier = 360; //시간 흐름 텀
+  clock.shouldAnimate = true; //시뮬레이션 시작
+  //##실습15. 그림자 시뮬레이션 소스 추가
 }
 
 //그림자 시뮬레이션 시작
 function stopShadowSimulation() {
   //##실습16. 그림자 시뮬레이션 종료 소스 추가
+  const clock = viewer.clock;
+  clock.shouldAnimate = false;
 }
 
 //=============== 통계 및 날씨 추가는 소스가 복잡하여 실습하기 힘듬 ==============================
@@ -670,6 +768,25 @@ function playSnowEffect() {
   scene.primitives.removeAll(); //기존 추가된 객체 삭제
   //##실습17. 눈 효과 추가
 
+  SNOW_ENTITY = scene.primitives.add(
+    new Cesium.ParticleSystem({
+      modelMatrix: new Cesium.Matrix4.fromTranslation(scene.camera.position),
+      minimumSpeed: -1.0,
+      maximumSpeed: 0.0,
+      lifetime: 15.0,
+      emitter: new Cesium.SphereEmitter(snowRadius),
+      startScale: 0.5,
+      endScale: 1.0,
+      image: "/img/snow.png",
+      emissionRate: 7000.0,
+      startColor: Cesium.Color.WHITE.withAlpha(0.0),
+      endColor: Cesium.Color.WHITE.withAlpha(1.0),
+      minimumImageSize: minimumSnowImageSize,
+      maximumImageSize: maximumSnowImageSize,
+      updateCallback: snowUpdate,
+    })
+  );
+
   //눈 오는것 같은 하늘 색상 등 변경
   scene.skyAtmosphere.hueShift = -0.8;
   scene.skyAtmosphere.saturationShift = -0.7;
@@ -682,6 +799,34 @@ function playRainEffect() {
   scene.primitives.removeAll(); //기존 객체 삭제(눈효과 등)
   //##실습18. 비 효과 추가
 
+  RAIN_ENTITY = scene.primitives.add(
+    new Cesium.ParticleSystem({
+      modelMatrix: new Cesium.Matrix4.fromTranslation(scene.camera.position),
+
+      speed: -1.0,
+
+      lifetime: 15.0,
+
+      emitter: new Cesium.SphereEmitter(rainRadius),
+
+      startScale: 1.0,
+
+      endScale: 0.0,
+
+      image: "/img/rain.png",
+
+      emissionRate: 9000.0,
+
+      startColor: new Cesium.Color(0.27, 0.5, 0.7, 0.0),
+
+      endColor: new Cesium.Color(0.27, 0.5, 0.7, 0.98),
+
+      imageSize: rainImageSize,
+
+      updateCallback: rainUpdate,
+    })
+  );
+
   //비 오는것 같은 하늘 색상 등 변경
   scene.skyAtmosphere.hueShift = -0.97;
   scene.skyAtmosphere.saturationShift = 0.25;
@@ -692,15 +837,33 @@ function playRainEffect() {
 
 function setSkyBright(sVal) {
   //##실습19. 하늘 밝기
+  scene.skyAtmosphere.brightnessShift = sVal;
 }
 
 function setFogDensity(sVal) {
   //##실습20. 안개강도(가시범위)
+  scene.fog.density = sVal;
 }
 
 //기상 효과 제거
 function removeWeatherEntity() {
   //##실습19. 기상효과 제거
+
+  if (SNOW_ENTITY != undefined) SNOW_ENTITY.show = false; //눈 엔티티 숨기기
+
+  if (RAIN_ENTITY != undefined) RAIN_ENTITY.show = false; //비 엔티티 숨기기
+
+  //하늘 색상 등 기본값 변경
+
+  scene.skyAtmosphere.hueShift = 0;
+
+  scene.skyAtmosphere.saturationShift = 0;
+
+  scene.skyAtmosphere.brightnessShift = 0;
+
+  scene.fog.density = 0;
+
+  scene.fog.minimumBrightness = 0;
 }
 
 //사용자 객체 그리기 기능 추가 2022.07.13
